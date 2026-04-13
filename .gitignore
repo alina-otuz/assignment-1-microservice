@@ -1,0 +1,2 @@
+# Ignore generated protobuf code in Repository A
+protos-gen/

@@ -252,3 +252,14 @@ curl -X POST http://localhost:8080/orders \
 | Functionality          | All 5 endpoints; PostgreSQL; all business rules enforced             |
 | Documentation & Diagram | This README + architecture diagram (architecture_diagram.svg)      |
 | Bonus (Idempotency)    | Idempotency-Key header; unique DB constraint; use case check         |
+
+## Protobuf repository separation
+
+This repository is Repository A and contains only `.proto` source files in `protos/`. Generated Go code is produced by CI and published to a separate Repository B, e.g. `github.com/youruser/repo-b`.
+
+- Local generation: `buf generate` produces `protos-gen/` for developer testing only.
+- `protos-gen/` is ignored and not committed in Repository A.
+- Consumer services should import the generated module from Repository B:
+  `go get github.com/youruser/repo-b`
+
+A GitHub Actions workflow is provided to generate and push updated `.pb.go` files to Repository B automatically when `.proto` files change.

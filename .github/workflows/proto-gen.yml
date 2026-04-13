@@ -1,0 +1,57 @@
+name: Generate and publish protobuf code
+
+on:
+  push:
+    paths:
+      - 'protos/**'
+      - 'buf.yaml'
+      - 'buf.gen.yaml'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25'
+
+      - name: Install buf
+        run: |
+          go install github.com/bufbuild/buf/cmd/buf@latest
+
+      - name: Generate protobuf Go code
+        run: |
+          cd protos
+          "$(go env GOPATH)/bin/buf" generate
+
+      - name: Push generated code to Repository B
+        env:
+          TARGET_REPO: alina-otuz/repo-b
+          TARGET_BRANCH: main
+          PUSH_TOKEN: ${{ secrets.BUF_GENERATED_REPO_PUSH_TOKEN }}
+        run: |
+          set -e
+          if [ -z "$PUSH_TOKEN" ]; then
+            echo "Missing PUSH_TOKEN secret. Set BUF_GENERATED_REPO_PUSH_TOKEN in repo secrets."
+            exit 1
+          fi
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          rm -rf generated-repo
+          git clone --depth=1 "https://x-access-token:${PUSH_TOKEN}@github.com/${TARGET_REPO}.git" generated-repo
+          rm -rf generated-repo/*
+          cp -R protos-gen/* generated-repo/
+          cd generated-repo
+          if git diff --quiet; then
+            echo "No generated changes to commit."
+          else
+            git add --all
+            git commit -m "Update generated protobuf code from proto repo"
+            git push origin "$TARGET_BRANCH"
+          fi

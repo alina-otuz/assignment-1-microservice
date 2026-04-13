@@ -1,0 +1,5 @@
+version: v2
+plugins:
+  - remote: buf.build/protocolbuffers/go
+    out: ../protos-gen  # temporary local folder for generation
+    opt: paths=source_relative

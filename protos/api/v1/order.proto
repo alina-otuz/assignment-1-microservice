@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package api.v1;
+
+option go_package = "github.com/alina-otuz/repo-b/api/v1;v1";
+
+import "google/protobuf/timestamp.proto";
+
+message CreateOrderRequest {
+  string customer_id = 1;
+  string item_name = 2;
+  int64 amount = 3;
+}
+
+message OrderResponse {
+  string id = 1;
+  string customer_id = 2;
+  string item_name = 3;
+  int64 amount = 4;
+  string status = 5;
+  string idempotency_key = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message GetOrderRequest {
+  string id = 1;
+}
+
+message CancelOrderRequest {
+  string id = 1;
+}
+
+message GetRecentPurchasesRequest {
+  int32 limit = 1;
+}
+
+message GetRecentPurchasesResponse {
+  repeated OrderResponse orders = 1;
+}
+
+service OrderService {
+  rpc CreateOrder(CreateOrderRequest) returns (OrderResponse);
+  rpc GetOrder(GetOrderRequest) returns (OrderResponse);
+  rpc CancelOrder(CancelOrderRequest) returns (OrderResponse);
+  rpc GetRecentPurchases(GetRecentPurchasesRequest) returns (GetRecentPurchasesResponse);
+}
