@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package api.v1;
+
+option go_package = "github.com/alina-otuz/repo-b/api/v1;v1";
+
+import "google/protobuf/timestamp.proto";
+
+message PaymentRequest {
+  string order_id = 1;
+  int64 amount = 2;
+}
+
+message PaymentResponse {
+  string id = 1;
+  string order_id = 2;
+  string transaction_id = 3;
+  int64 amount = 4;
+  string status = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message GetPaymentByOrderIDRequest {
+  string order_id = 1;
+}
+
+service PaymentService {
+  rpc ProcessPayment(PaymentRequest) returns (PaymentResponse);
+  rpc GetByOrderID(GetPaymentByOrderIDRequest) returns (PaymentResponse);
+}

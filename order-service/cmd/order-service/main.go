@@ -2,16 +2,19 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
-	"net/http"
+	"net"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
+	"google.golang.org/grpc"
 
 	"order-service/internal/repository/postgres"
 	httpTransport "order-service/internal/transport/http"
+	grpcTransport "order-service/internal/transport/grpc"
 	"order-service/internal/usecase"
 	"order-service/internal/usecase/client"
 )
@@ -34,25 +37,46 @@ func main() {
 	}
 	log.Println("Connected to orders database")
 
-	// ── Outbound HTTP client (required: 2-second timeout) ─────────────
-	paymentHTTPClient := &http.Client{
-		Timeout: 2 * time.Second, // Required failure scenario: order service must not hang.
+	// ── Outbound gRPC client (required: 2-second timeout) ──────────────
+	paymentHost := getEnv("PAYMENT_SERVICE_GRPC_HOST", "localhost")
+	paymentPort := getEnv("PAYMENT_SERVICE_GRPC_PORT", "50051")
+	paymentAddr := fmt.Sprintf("%s:%s", paymentHost, paymentPort)
+
+	paymentClient, err := client.NewPaymentClient(paymentAddr, 2*time.Second)
+	if err != nil {
+		log.Fatalf("failed to create payment gRPC client: %v", err)
 	}
+	defer paymentClient.Close()
 
 	// ── Manual Dependency Injection (Composition Root) ─────────────────
-	paymentBaseURL := getEnv("PAYMENT_SERVICE_URL", "http://localhost:8081")
-	paymentClient := client.NewPaymentClient(paymentHTTPClient, paymentBaseURL)
-
 	orderRepo := postgres.NewOrderRepository(db)
 	orderUC := usecase.NewOrderUseCase(orderRepo, paymentClient)
 	handler := httpTransport.NewHandler(orderUC)
+	grpcHandler := grpcTransport.NewServer(orderUC, dsn)
+
+	// ── Start gRPC server for order updates and order queries ────────────
+	grpcPort := getEnv("ORDER_GRPC_PORT", "50052")
+	grpcListener, err := net.Listen("tcp", ":"+grpcPort)
+	if err != nil {
+		log.Fatalf("grpc listen: %v", err)
+	}
+
+	grpcServer := grpc.NewServer()
+	grpcHandler.Register(grpcServer)
+
+	go func() {
+		log.Printf("Order Service gRPC listening on :%s", grpcPort)
+		if err := grpcServer.Serve(grpcListener); err != nil {
+			log.Fatalf("grpc serve: %v", err)
+		}
+	}()
 
 	// ── Router ──────────────────────────────────────────────────────────
 	router := gin.Default()
 	handler.RegisterRoutes(router)
 
 	port := getEnv("ORDER_PORT", "8080")
-	log.Printf("Order Service listening on :%s", port)
+	log.Printf("Order Service HTTP listening on :%s", port)
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("router.Run: %v", err)
 	}
