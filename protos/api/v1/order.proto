@@ -38,9 +38,16 @@ message GetRecentPurchasesResponse {
   repeated OrderResponse orders = 1;
 }
 
+message OrderStatusUpdate {
+  string id = 1;
+  string status = 2;
+  google.protobuf.Timestamp updated_at = 3;
+}
+
 service OrderService {
   rpc CreateOrder(CreateOrderRequest) returns (OrderResponse);
   rpc GetOrder(GetOrderRequest) returns (OrderResponse);
   rpc CancelOrder(CancelOrderRequest) returns (OrderResponse);
   rpc GetRecentPurchases(GetRecentPurchasesRequest) returns (GetRecentPurchasesResponse);
+  rpc SubscribeToOrderUpdates(GetOrderRequest) returns (stream OrderStatusUpdate);
 }

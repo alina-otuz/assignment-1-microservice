@@ -15,8 +15,8 @@ type OrderRepository interface {
 	Update(ctx context.Context, order *domain.Order) error
 }
 
-// PaymentClient is the Port for the outbound REST call to Payment Service.
-// This keeps the use case completely decoupled from http.Client internals.
+// PaymentClient is the Port for the outbound gRPC call to Payment Service.
+// This keeps the use case completely decoupled from transport details.
 type PaymentClient interface {
 	// Authorize calls POST /payments on the Payment Service.
 	// Returns the status ("Authorized"/"Declined") and a transactionID.

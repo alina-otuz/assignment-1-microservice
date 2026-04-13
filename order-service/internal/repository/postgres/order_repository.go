@@ -110,12 +110,19 @@ func (r *OrderRepository) ListRecentPaid(ctx context.Context, limit int) ([]doma
 	return out, nil
 }
 
-// Update saves the mutated status field.
+// Update saves the mutated status field and publishes a DB notification.
 func (r *OrderRepository) Update(ctx context.Context, order *domain.Order) error {
 	const q = `UPDATE orders SET status = $1 WHERE id = $2`
 	_, err := r.db.ExecContext(ctx, q, order.Status, order.ID)
 	if err != nil {
 		return fmt.Errorf("OrderRepository.Update: %w", err)
 	}
+
+	const notify = `NOTIFY order_updates, $1`
+	_, err = r.db.ExecContext(ctx, notify, order.ID)
+	if err != nil {
+		return fmt.Errorf("OrderRepository.Update notify: %w", err)
+	}
+
 	return nil
 }

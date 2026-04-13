@@ -1,64 +1,59 @@
 package client
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
+	v1 "github.com/alina-otuz/repo-b/protos-gen/api/v1"
 )
 
 // PaymentClient is the concrete adapter that satisfies the usecase.PaymentClient port.
-// It holds a *http.Client configured with a 2-second Timeout (set at the Composition Root).
+// It calls the Payment Service over gRPC.
 type PaymentClient struct {
-	httpClient *http.Client
-	baseURL    string
+	grpcClient v1.PaymentServiceClient
+	conn       *grpc.ClientConn
+	timeout    time.Duration
 }
 
-func NewPaymentClient(httpClient *http.Client, baseURL string) *PaymentClient {
-	return &PaymentClient{httpClient: httpClient, baseURL: baseURL}
+func NewPaymentClient(grpcAddr string, timeout time.Duration) (*PaymentClient, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	conn, err := grpc.DialContext(ctx, grpcAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("PaymentClient: dial %s: %w", grpcAddr, err)
+	}
+
+	return &PaymentClient{
+		grpcClient: v1.NewPaymentServiceClient(conn),
+		conn:       conn,
+		timeout:    timeout,
+	}, nil
 }
 
-type authorizeRequest struct {
-	OrderID string `json:"order_id"`
-	Amount  int64  `json:"amount"`
+func (c *PaymentClient) Close() error {
+	if c.conn == nil {
+		return nil
+	}
+	return c.conn.Close()
 }
 
-type authorizeResponse struct {
-	Status        string `json:"status"`
-	TransactionID string `json:"transaction_id"`
-}
-
-// Authorize posts to POST /payments on the Payment Service.
-// The http.Client timeout (2s) is enforced by the caller's Transport layer,
-// so a network failure or slow response automatically returns an error here.
+// Authorize calls the Payment Service via gRPC.
 func (c *PaymentClient) Authorize(ctx context.Context, orderID string, amount int64) (string, string, error) {
-	body, err := json.Marshal(authorizeRequest{OrderID: orderID, Amount: amount})
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	resp, err := c.grpcClient.ProcessPayment(ctx, &v1.PaymentRequest{OrderId: orderID, Amount: amount})
 	if err != nil {
-		return "", "", fmt.Errorf("PaymentClient: marshal: %w", err)
+		return "", "", fmt.Errorf("PaymentClient.ProcessPayment: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/payments", bytes.NewReader(body))
-	if err != nil {
-		return "", "", fmt.Errorf("PaymentClient: build request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		// Covers: connection refused, timeout (context deadline exceeded), DNS failure, etc.
-		return "", "", fmt.Errorf("PaymentClient: do request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("PaymentClient: unexpected status %d", resp.StatusCode)
-	}
-
-	var result authorizeResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", "", fmt.Errorf("PaymentClient: decode response: %w", err)
-	}
-
-	return result.Status, result.TransactionID, nil
+	return resp.GetStatus(), resp.GetTransactionId(), nil
 }
