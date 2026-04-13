@@ -1,0 +1,236 @@
+{
+  "info": {
+    "name": "AP2 Assignment 1 Microservices",
+    "_postman_id": "4f8c9e82-1db4-4f4c-9f18-8a16a3a7cdf9",
+    "description": "Order Service and Payment Service API requests for local testing.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "order_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "payment_url",
+      "value": "http://localhost:8081",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Order Service",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{order_url}}/",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create order - paid",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"cust-001\",\n  \"item_name\": \"Laptop\",\n  \"amount\": 50000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{order_url}}/orders",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create order - declined",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"cust-002\",\n  \"item_name\": \"Sports Car\",\n  \"amount\": 500000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{order_url}}/orders",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get order by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{order_url}}/orders/:id",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "orders", ":id"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancel order",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{order_url}}/orders/:id/cancel",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "orders", ":id", "cancel"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create order with Idempotency-Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "my-idempotency-key"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"cust-003\",\n  \"item_name\": \"Tablet\",\n  \"amount\": 20000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{order_url}}/orders",
+              "host": [
+                "{{order_url}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payment Service",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{payment_url}}/",
+              "host": [
+                "{{payment_url}}"
+              ],
+              "path": [
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Authorize payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"order-123\",\n  \"amount\": 50000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{payment_url}}/payments",
+              "host": [
+                "{{payment_url}}"
+              ],
+              "path": [
+                "payments"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get payment by order id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{payment_url}}/payments/:order_id",
+              "host": [
+                "{{payment_url}}"
+              ],
+              "path": [
+                "payments", ":order_id"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
