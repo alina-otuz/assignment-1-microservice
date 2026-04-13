@@ -118,7 +118,7 @@ func (r *OrderRepository) Update(ctx context.Context, order *domain.Order) error
 		return fmt.Errorf("OrderRepository.Update: %w", err)
 	}
 
-	const notify = `NOTIFY order_updates, $1`
+	const notify = `SELECT pg_notify('order_updates', $1)`
 	_, err = r.db.ExecContext(ctx, notify, order.ID)
 	if err != nil {
 		return fmt.Errorf("OrderRepository.Update notify: %w", err)

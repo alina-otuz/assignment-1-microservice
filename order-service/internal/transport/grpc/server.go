@@ -139,6 +139,9 @@ func mapOrderError(err error) error {
 		errors.Is(err, domain.ErrMissingCustomerID),
 		errors.Is(err, domain.ErrMissingItemName):
 		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, domain.ErrCannotCancelPaidOrder),
+		errors.Is(err, domain.ErrOnlyPendingCanBeCancelled):
+		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, domain.ErrPaymentServiceUnavailable):
 		return status.Error(codes.Unavailable, err.Error())
 	default:

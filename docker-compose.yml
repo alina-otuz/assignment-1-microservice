@@ -40,7 +40,9 @@ services:
 
   # ── Services ──────────────────────────────────────────────────────────────
   order-service:
-    build: ./order-service
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
     restart: on-failure
     ports:
       - "8080:8080"
@@ -58,7 +60,9 @@ services:
         condition: service_started
 
   payment-service:
-    build: ./payment-service
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
     restart: on-failure
     ports:
       - "8081:8081"
