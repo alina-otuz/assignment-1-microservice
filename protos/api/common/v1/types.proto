@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package api.common.v1;
+
+option go_package = "github.com/alina-otuz/repo-b/api/common/v1;commonv1";
+
+message Empty {}

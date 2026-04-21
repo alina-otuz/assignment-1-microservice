@@ -12,7 +12,7 @@ message CreateOrderRequest {
   int64 amount = 3;
 }
 
-message OrderResponse {
+message Order {
   string id = 1;
   string customer_id = 2;
   string item_name = 3;
@@ -22,12 +22,24 @@ message OrderResponse {
   google.protobuf.Timestamp created_at = 7;
 }
 
+message CreateOrderResponse {
+  Order order = 1;
+}
+
 message GetOrderRequest {
   string id = 1;
 }
 
+message GetOrderResponse {
+  Order order = 1;
+}
+
 message CancelOrderRequest {
   string id = 1;
+}
+
+message CancelOrderResponse {
+  Order order = 1;
 }
 
 message GetRecentPurchasesRequest {
@@ -35,19 +47,23 @@ message GetRecentPurchasesRequest {
 }
 
 message GetRecentPurchasesResponse {
-  repeated OrderResponse orders = 1;
+  repeated Order orders = 1;
 }
 
-message OrderStatusUpdate {
+message SubscribeToOrderUpdatesRequest {
+  string id = 1;
+}
+
+message SubscribeToOrderUpdatesResponse {
   string id = 1;
   string status = 2;
   google.protobuf.Timestamp updated_at = 3;
 }
 
 service OrderService {
-  rpc CreateOrder(CreateOrderRequest) returns (OrderResponse);
-  rpc GetOrder(GetOrderRequest) returns (OrderResponse);
-  rpc CancelOrder(CancelOrderRequest) returns (OrderResponse);
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+  rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
   rpc GetRecentPurchases(GetRecentPurchasesRequest) returns (GetRecentPurchasesResponse);
-  rpc SubscribeToOrderUpdates(GetOrderRequest) returns (stream OrderStatusUpdate);
+  rpc SubscribeToOrderUpdates(SubscribeToOrderUpdatesRequest) returns (stream SubscribeToOrderUpdatesResponse);
 }

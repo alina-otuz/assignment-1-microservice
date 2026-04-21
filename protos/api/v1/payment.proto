@@ -6,12 +6,12 @@ option go_package = "github.com/alina-otuz/repo-b/api/v1;v1";
 
 import "google/protobuf/timestamp.proto";
 
-message PaymentRequest {
+message ProcessPaymentRequest {
   string order_id = 1;
   int64 amount = 2;
 }
 
-message PaymentResponse {
+message Payment {
   string id = 1;
   string order_id = 2;
   string transaction_id = 3;
@@ -20,8 +20,16 @@ message PaymentResponse {
   google.protobuf.Timestamp created_at = 6;
 }
 
-message GetPaymentByOrderIDRequest {
+message ProcessPaymentResponse {
+  Payment payment = 1;
+}
+
+message GetByOrderIDRequest {
   string order_id = 1;
+}
+
+message GetByOrderIDResponse {
+  Payment payment = 1;
 }
 
 message ListPaymentsRequest {
@@ -30,11 +38,11 @@ message ListPaymentsRequest {
 }
 
 message ListPaymentsResponse {
-  repeated PaymentResponse payments = 1;
+  repeated Payment payments = 1;
 }
 
 service PaymentService {
-  rpc ProcessPayment(PaymentRequest) returns (PaymentResponse);
-  rpc GetByOrderID(GetPaymentByOrderIDRequest) returns (PaymentResponse);
+  rpc ProcessPayment(ProcessPaymentRequest) returns (ProcessPaymentResponse);
+  rpc GetByOrderID(GetByOrderIDRequest) returns (GetByOrderIDResponse);
   rpc ListPayments(ListPaymentsRequest) returns (ListPaymentsResponse);
 }
