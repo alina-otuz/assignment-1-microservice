@@ -1,5 +1,0 @@
-go 1.21
-
-use .
-use ./order-service
-use ./payment-service
