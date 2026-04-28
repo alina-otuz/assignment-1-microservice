@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	v1 "github.com/alina-otuz/repo-b/protos-gen/api/v1"
+	v1 "github.com/alina-otuz/repo-b/api/v1"
 	"order-service/internal/domain"
 	"order-service/internal/usecase"
 )
@@ -31,28 +31,28 @@ func (s *Server) Register(grpcServer *grpc.Server) {
 	v1.RegisterOrderServiceServer(grpcServer, s)
 }
 
-func (s *Server) CreateOrder(ctx context.Context, req *v1.CreateOrderRequest) (*v1.OrderResponse, error) {
+func (s *Server) CreateOrder(ctx context.Context, req *v1.CreateOrderRequest) (*v1.CreateOrderResponse, error) {
 	order, err := s.uc.CreateOrder(ctx, req.GetCustomerId(), req.GetItemName(), req.GetAmount(), "")
 	if err != nil {
 		return nil, mapOrderError(err)
 	}
-	return toProto(order), nil
+	return &v1.CreateOrderResponse{Order: toProto(order)}, nil
 }
 
-func (s *Server) GetOrder(ctx context.Context, req *v1.GetOrderRequest) (*v1.OrderResponse, error) {
+func (s *Server) GetOrder(ctx context.Context, req *v1.GetOrderRequest) (*v1.GetOrderResponse, error) {
 	order, err := s.uc.GetOrder(ctx, req.GetId())
 	if err != nil {
 		return nil, mapOrderError(err)
 	}
-	return toProto(order), nil
+	return &v1.GetOrderResponse{Order: toProto(order)}, nil
 }
 
-func (s *Server) CancelOrder(ctx context.Context, req *v1.CancelOrderRequest) (*v1.OrderResponse, error) {
+func (s *Server) CancelOrder(ctx context.Context, req *v1.CancelOrderRequest) (*v1.CancelOrderResponse, error) {
 	order, err := s.uc.CancelOrder(ctx, req.GetId())
 	if err != nil {
 		return nil, mapOrderError(err)
 	}
-	return toProto(order), nil
+	return &v1.CancelOrderResponse{Order: toProto(order)}, nil
 }
 
 func (s *Server) GetRecentPurchases(ctx context.Context, req *v1.GetRecentPurchasesRequest) (*v1.GetRecentPurchasesResponse, error) {
@@ -61,20 +61,20 @@ func (s *Server) GetRecentPurchases(ctx context.Context, req *v1.GetRecentPurcha
 		return nil, mapOrderError(err)
 	}
 
-	resp := &v1.GetRecentPurchasesResponse{Orders: make([]*v1.OrderResponse, 0, len(orders))}
+	resp := &v1.GetRecentPurchasesResponse{Orders: make([]*v1.Order, 0, len(orders))}
 	for _, order := range orders {
 		resp.Orders = append(resp.Orders, toProto(&order))
 	}
 	return resp, nil
 }
 
-func (s *Server) SubscribeToOrderUpdates(req *v1.GetOrderRequest, stream v1.OrderService_SubscribeToOrderUpdatesServer) error {
+func (s *Server) SubscribeToOrderUpdates(req *v1.SubscribeToOrderUpdatesRequest, stream v1.OrderService_SubscribeToOrderUpdatesServer) error {
 	order, err := s.uc.GetOrder(stream.Context(), req.GetId())
 	if err != nil {
 		return mapOrderError(err)
 	}
 
-	if err := stream.Send(&v1.OrderStatusUpdate{
+	if err := stream.Send(&v1.SubscribeToOrderUpdatesResponse{
 		Id:        order.ID,
 		Status:    order.Status,
 		UpdatedAt: timestamppb.Now(),
@@ -104,7 +104,7 @@ func (s *Server) SubscribeToOrderUpdates(req *v1.GetOrderRequest, stream v1.Orde
 			if err != nil {
 				return mapOrderError(err)
 			}
-			if err := stream.Send(&v1.OrderStatusUpdate{
+			if err := stream.Send(&v1.SubscribeToOrderUpdatesResponse{
 				Id:        order.ID,
 				Status:    order.Status,
 				UpdatedAt: timestamppb.Now(),
@@ -119,8 +119,8 @@ func (s *Server) SubscribeToOrderUpdates(req *v1.GetOrderRequest, stream v1.Orde
 	}
 }
 
-func toProto(order *domain.Order) *v1.OrderResponse {
-	return &v1.OrderResponse{
+func toProto(order *domain.Order) *v1.Order {
+	return &v1.Order{
 		Id:             order.ID,
 		CustomerId:     order.CustomerID,
 		ItemName:       order.ItemName,

@@ -41,8 +41,8 @@ services:
   # ── Services ──────────────────────────────────────────────────────────────
   order-service:
     build:
-      context: .
-      dockerfile: order-service/Dockerfile
+      context: ..
+      dockerfile: assignment-1-microservice/order-service/Dockerfile
     restart: on-failure
     ports:
       - "8080:8080"
@@ -61,8 +61,8 @@ services:
 
   payment-service:
     build:
-      context: .
-      dockerfile: payment-service/Dockerfile
+      context: ..
+      dockerfile: assignment-1-microservice/payment-service/Dockerfile
     restart: on-failure
     ports:
       - "8081:8081"

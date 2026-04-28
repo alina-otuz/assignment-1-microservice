@@ -4,7 +4,7 @@ import (
 "context"
 "errors"
 
-v1 "github.com/alina-otuz/repo-b/protos-gen/api/v1"
+v1 "github.com/alina-otuz/repo-b/api/v1"
 "payment-service/internal/domain"
 "payment-service/internal/usecase"
 "google.golang.org/grpc"
@@ -27,35 +27,39 @@ func (s *Server) Register(grpcServer *grpc.Server) {
 v1.RegisterPaymentServiceServer(grpcServer, s)
 }
 
-func (s *Server) ProcessPayment(ctx context.Context, req *v1.PaymentRequest) (*v1.PaymentResponse, error) {
+func (s *Server) ProcessPayment(ctx context.Context, req *v1.ProcessPaymentRequest) (*v1.ProcessPaymentResponse, error) {
 payment, err := s.uc.Authorize(ctx, req.GetOrderId(), req.GetAmount())
 if err != nil {
 return nil, mapPaymentError(err)
 }
 
-return &v1.PaymentResponse{
+return &v1.ProcessPaymentResponse{
+Payment: &v1.Payment{
 Id:            payment.ID,
 OrderId:       payment.OrderID,
 TransactionId: payment.TransactionID,
 Amount:        payment.Amount,
 Status:        payment.Status,
 CreatedAt:     timestamppb.Now(),
+},
 }, nil
 }
 
-func (s *Server) GetByOrderID(ctx context.Context, req *v1.GetPaymentByOrderIDRequest) (*v1.PaymentResponse, error) {
+func (s *Server) GetByOrderID(ctx context.Context, req *v1.GetByOrderIDRequest) (*v1.GetByOrderIDResponse, error) {
 payment, err := s.uc.GetByOrderID(ctx, req.GetOrderId())
 if err != nil {
 return nil, mapPaymentError(err)
 }
 
-return &v1.PaymentResponse{
+return &v1.GetByOrderIDResponse{
+Payment: &v1.Payment{
 Id:            payment.ID,
 OrderId:       payment.OrderID,
 TransactionId: payment.TransactionID,
 Amount:        payment.Amount,
 Status:        payment.Status,
 CreatedAt:     timestamppb.Now(),
+},
 }, nil
 }
 
@@ -65,9 +69,9 @@ if err != nil {
 return nil, mapPaymentError(err)
 }
 
-var responses []*v1.PaymentResponse
+var responses []*v1.Payment
 for _, payment := range payments {
-responses = append(responses, &v1.PaymentResponse{
+responses = append(responses, &v1.Payment{
 Id:            payment.ID,
 OrderId:       payment.OrderID,
 TransactionId: payment.TransactionID,

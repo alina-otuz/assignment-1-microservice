@@ -28,12 +28,8 @@
             "header": [],
             "url": {
               "raw": "{{order_url}}/",
-              "host": [
-                "{{order_url}}"
-              ],
-              "path": [
-                ""
-              ]
+              "host": ["{{order_url}}"],
+              "path": [""]
             }
           }
         },
@@ -42,28 +38,17 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"customer_id\": \"cust-001\",\n  \"item_name\": \"Laptop\",\n  \"amount\": 50000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": { "raw": { "language": "json" } }
             },
             "url": {
               "raw": "{{order_url}}/orders",
-              "host": [
-                "{{order_url}}"
-              ],
-              "path": [
-                "orders"
-              ]
+              "host": ["{{order_url}}"],
+              "path": ["orders"]
             }
           }
         },
@@ -72,28 +57,17 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"customer_id\": \"cust-002\",\n  \"item_name\": \"Sports Car\",\n  \"amount\": 500000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": { "raw": { "language": "json" } }
             },
             "url": {
               "raw": "{{order_url}}/orders",
-              "host": [
-                "{{order_url}}"
-              ],
-              "path": [
-                "orders"
-              ]
+              "host": ["{{order_url}}"],
+              "path": ["orders"]
             }
           }
         },
@@ -104,12 +78,8 @@
             "header": [],
             "url": {
               "raw": "{{order_url}}/orders/:id",
-              "host": [
-                "{{order_url}}"
-              ],
-              "path": [
-                "orders", ":id"
-              ]
+              "host": ["{{order_url}}"],
+              "path": ["orders", ":id"]
             }
           }
         },
@@ -120,12 +90,8 @@
             "header": [],
             "url": {
               "raw": "{{order_url}}/orders/:id/cancel",
-              "host": [
-                "{{order_url}}"
-              ],
-              "path": [
-                "orders", ":id", "cancel"
-              ]
+              "host": ["{{order_url}}"],
+              "path": ["orders", ":id", "cancel"]
             }
           }
         },
@@ -134,32 +100,51 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "my-idempotency-key"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "my-idempotency-key" }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"customer_id\": \"cust-003\",\n  \"item_name\": \"Tablet\",\n  \"amount\": 20000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": { "raw": { "language": "json" } }
             },
             "url": {
               "raw": "{{order_url}}/orders",
-              "host": [
-                "{{order_url}}"
-              ],
-              "path": [
-                "orders"
-              ]
+              "host": ["{{order_url}}"],
+              "path": ["orders"]
+            }
+          }
+        },
+        {
+          "name": "Create order with same Idempotency-Key (duplicate test)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "my-idempotency-key" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"cust-003\",\n  \"item_name\": \"Tablet\",\n  \"amount\": 20000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{order_url}}/orders",
+              "host": ["{{order_url}}"],
+              "path": ["orders"]
+            }
+          }
+        },
+        {
+          "name": "Get recent purchases",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{order_url}}/orders/recent?limit=5",
+              "host": ["{{order_url}}"],
+              "path": ["orders", "recent"],
+              "query": [{ "key": "limit", "value": "5" }]
             }
           }
         }
@@ -175,12 +160,8 @@
             "header": [],
             "url": {
               "raw": "{{payment_url}}/",
-              "host": [
-                "{{payment_url}}"
-              ],
-              "path": [
-                ""
-              ]
+              "host": ["{{payment_url}}"],
+              "path": [""]
             }
           }
         },
@@ -189,28 +170,17 @@
           "request": {
             "method": "POST",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
+              { "key": "Content-Type", "value": "application/json" }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"order_id\": \"order-123\",\n  \"amount\": 50000\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": { "raw": { "language": "json" } }
             },
             "url": {
               "raw": "{{payment_url}}/payments",
-              "host": [
-                "{{payment_url}}"
-              ],
-              "path": [
-                "payments"
-              ]
+              "host": ["{{payment_url}}"],
+              "path": ["payments"]
             }
           }
         },
@@ -221,12 +191,92 @@
             "header": [],
             "url": {
               "raw": "{{payment_url}}/payments/:order_id",
-              "host": [
-                "{{payment_url}}"
-              ],
-              "path": [
-                "payments", ":order_id"
-              ]
+              "host": ["{{payment_url}}"],
+              "path": ["payments", ":order_id"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "gRPC (run in terminal with grpcurl)",
+      "item": [
+        {
+          "name": "gRPC - Create Order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{order_url}}/orders", "host": ["{{order_url}}"], "path": ["orders"] }
+          },
+          "description": "Run in terminal:\n\n```bash\ngrpcurl -plaintext -d '{\"customer_id\":\"cust-001\",\"item_name\":\"Laptop\",\"amount\":50000}' localhost:50052 api.v1.OrderService/CreateOrder\n```"
+        },
+        {
+          "name": "gRPC - Get Order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{order_url}}/orders", "host": ["{{order_url}}"], "path": ["orders"] }
+          },
+          "description": "Run in terminal (replace {id}):\n\n```bash\ngrpcurl -plaintext -d '{\"id\":\"{id}\"}' localhost:50052 api.v1.OrderService/GetOrder\n```"
+        },
+        {
+          "name": "gRPC - Get Recent Purchases",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{order_url}}/orders", "host": ["{{order_url}}"], "path": ["orders"] }
+          },
+          "description": "Run in terminal:\n\n```bash\ngrpcurl -plaintext -d '{\"limit\":5}' localhost:50052 api.v1.OrderService/GetRecentPurchases\n```"
+        },
+        {
+          "name": "gRPC - Subscribe to Order Updates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{order_url}}/orders", "host": ["{{order_url}}"], "path": ["orders"] }
+          },
+          "description": "Run in terminal (replace {order_id}):\n\n```bash\ngo run ./order-service/cmd/order-subscriber --addr localhost:50052 --order-id {order_id}\n```\n\nThis subscribes to real-time order status updates via server streaming."
+        }
+      ]
+    },
+    {
+      "name": "Failure Scenarios",
+      "item": [
+        {
+          "name": "Test: Payment declined (amount > 100000)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"cust-004\",\n  \"item_name\": \"Luxury Villa\",\n  \"amount\": 150000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{order_url}}/orders",
+              "host": ["{{order_url}}"],
+              "path": ["orders"]
+            }
+          }
+        },
+        {
+          "name": "Test: Create small order for cancel test",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": \"cust-005\",\n  \"item_name\": \"Phone\",\n  \"amount\": 1000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{order_url}}/orders",
+              "host": ["{{order_url}}"],
+              "path": ["orders"]
             }
           }
         }

@@ -11,7 +11,7 @@ require (
 	google.golang.org/protobuf v1.34.2
 )
 
-replace github.com/alina-otuz/repo-b => ../
+replace github.com/alina-otuz/repo-b => ../protos-gen
 
 require (
 	github.com/bytedance/sonic v1.9.1 // indirect

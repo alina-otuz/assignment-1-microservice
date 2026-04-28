@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	v1 "github.com/alina-otuz/repo-b/protos-gen/api/v1"
+	v1 "github.com/alina-otuz/repo-b/api/v1"
 )
 
 // PaymentClient is the concrete adapter that satisfies the usecase.PaymentClient port.
@@ -50,10 +50,11 @@ func (c *PaymentClient) Authorize(ctx context.Context, orderID string, amount in
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	resp, err := c.grpcClient.ProcessPayment(ctx, &v1.PaymentRequest{OrderId: orderID, Amount: amount})
+	resp, err := c.grpcClient.ProcessPayment(ctx, &v1.ProcessPaymentRequest{OrderId: orderID, Amount: amount})
 	if err != nil {
 		return "", "", fmt.Errorf("PaymentClient.ProcessPayment: %w", err)
 	}
 
-	return resp.GetStatus(), resp.GetTransactionId(), nil
+	payment := resp.GetPayment()
+	return payment.GetStatus(), payment.GetTransactionId(), nil
 }

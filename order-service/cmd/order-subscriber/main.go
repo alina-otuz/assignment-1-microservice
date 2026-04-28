@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	v1 "github.com/alina-otuz/repo-b/protos-gen/api/v1"
+	v1 "github.com/alina-otuz/repo-b/api/v1"
 )
 
 func main() {
@@ -32,7 +32,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	stream, err := client.SubscribeToOrderUpdates(ctx, &v1.GetOrderRequest{Id: *orderID})
+	stream, err := client.SubscribeToOrderUpdates(ctx, &v1.SubscribeToOrderUpdatesRequest{Id: *orderID})
 	if err != nil {
 		log.Fatalf("SubscribeToOrderUpdates failed: %v", err)
 	}
