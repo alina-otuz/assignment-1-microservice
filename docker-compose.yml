@@ -40,14 +40,19 @@ services:
 
   # ── Services ──────────────────────────────────────────────────────────────
   order-service:
-    build: ./order-service
+    build:
+      context: ..
+      dockerfile: assignment-1-microservice/order-service/Dockerfile
     restart: on-failure
     ports:
       - "8080:8080"
+      - "50052:50052"
     environment:
-      ORDER_DB_DSN:        "host=orders-db port=5432 user=postgres password=postgres dbname=orders sslmode=disable"
-      PAYMENT_SERVICE_URL: "http://payment-service:8081"
-      ORDER_PORT:          "8080"
+      ORDER_DB_DSN:              "host=orders-db port=5432 user=postgres password=postgres dbname=orders sslmode=disable"
+      PAYMENT_SERVICE_GRPC_HOST: "payment-service"
+      PAYMENT_SERVICE_GRPC_PORT: "50051"
+      ORDER_PORT:                "8080"
+      ORDER_GRPC_PORT:           "50052"
     depends_on:
       orders-db:
         condition: service_healthy
@@ -55,16 +60,26 @@ services:
         condition: service_started
 
   payment-service:
-    build: ./payment-service
+    build:
+      context: ..
+      dockerfile: assignment-1-microservice/payment-service/Dockerfile
     restart: on-failure
     ports:
       - "8081:8081"
+      - "50051:50051"
     environment:
-      PAYMENT_DB_DSN: "host=payments-db port=5432 user=postgres password=postgres dbname=payments sslmode=disable"
-      PAYMENT_PORT:   "8081"
+      PAYMENT_DB_DSN:  "host=payments-db port=5432 user=postgres password=postgres dbname=payments sslmode=disable"
+      PAYMENT_PORT:    "8081"
+      PAYMENT_GRPC_PORT: "50051"
     depends_on:
       payments-db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   orders-data:

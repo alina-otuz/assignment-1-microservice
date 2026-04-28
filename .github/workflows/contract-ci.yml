@@ -1,0 +1,39 @@
+name: Contract-First CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install buf
+        uses: bufbuild/buf-setup-action@v1
+
+      - name: Lint protobuf contracts
+        run: buf lint protos
+
+      - name: Detect proto baseline on main
+        id: proto_baseline
+        shell: bash
+        run: |
+          if git ls-tree -r --name-only origin/main protos | grep -E '\.proto$' >/dev/null; then
+            echo "has_proto=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_proto=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Breaking change check
+        if: steps.proto_baseline.outputs.has_proto == 'true'
+        run: buf breaking protos --against '.git#branch=main,subdir=protos'
+
+      - name: Generate protobuf code
+        working-directory: protos
+        run: buf generate

@@ -3,14 +3,17 @@ package main
 import (
 	"database/sql"
 	"log"
+	"net"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
+	"google.golang.org/grpc"
 
 	"payment-service/internal/repository/postgres"
 	httpTransport "payment-service/internal/transport/http"
+	grpcTransport "payment-service/internal/transport/grpc"
 	"payment-service/internal/usecase"
 )
 
@@ -35,14 +38,32 @@ func main() {
 	// ── Manual Dependency Injection (Composition Root) ─────────────────
 	paymentRepo := postgres.NewPaymentRepository(db)
 	paymentUC := usecase.NewPaymentUseCase(paymentRepo)
-	handler := httpTransport.NewHandler(paymentUC)
+	httpHandler := httpTransport.NewHandler(paymentUC)
+	grpcHandler := grpcTransport.NewServer(paymentUC)
+
+	// ── Start gRPC server ───────────────────────────────────────────────
+	grpcPort := getEnv("PAYMENT_GRPC_PORT", "50051")
+	grpcListener, err := net.Listen("tcp", ":"+grpcPort)
+	if err != nil {
+		log.Fatalf("grpc listen: %v", err)
+	}
+
+	grpcServer := grpc.NewServer()
+	grpcHandler.Register(grpcServer)
+
+	go func() {
+		log.Printf("Payment gRPC listening on :%s", grpcPort)
+		if err := grpcServer.Serve(grpcListener); err != nil {
+			log.Fatalf("grpc serve: %v", err)
+		}
+	}()
 
 	// ── Router ──────────────────────────────────────────────────────────
 	router := gin.Default()
-	handler.RegisterRoutes(router)
+	httpHandler.RegisterRoutes(router)
 
 	port := getEnv("PAYMENT_PORT", "8081")
-	log.Printf("Payment Service listening on :%s", port)
+	log.Printf("Payment HTTP listening on :%s", port)
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("router.Run: %v", err)
 	}

@@ -56,7 +56,7 @@ func (uc *OrderUseCase) CreateOrder(
 		return nil, fmt.Errorf("failed to persist order: %w", err)
 	}
 
-	// --- Call Payment Service (synchronous REST, 2-second timeout) ---
+	// --- Call Payment Service (synchronous gRPC, 2-second timeout) ---
 	status, _, err := uc.paymentClient.Authorize(ctx, order.ID, order.Amount)
 	if err != nil {
 		// Payment service is down or timed out.

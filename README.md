@@ -2,7 +2,9 @@
 
 ## Overview
 
-A two-service platform built in Go, demonstrating Clean Architecture, bounded contexts, separate data ownership, and resilient synchronous REST communication.
+A two-service platform built in Go, demonstrating Clean Architecture, bounded contexts, separate data ownership, and resilient synchronous internal gRPC communication between services.
+
+Order Service exposes both HTTP and gRPC APIs, while Payment Service exposes gRPC for internal payment processing.
 
 ---
 
@@ -47,26 +49,34 @@ Each service is structured as four concentric layers. The **Dependency Rule** is
 
 ---
 
-### REST Communication & Timeout
+### gRPC Communication & Timeout
 
-Order Service → Payment Service via `POST /payments`.
+Order Service → Payment Service via the `ProcessPayment` gRPC endpoint.
 
 ```
 Order Service                     Payment Service
      │                                  │
-     │── POST /payments ──────────────► │
-     │   {"order_id": ..., "amount": ...}│
-     │                                  │── apply business rule (amount > 100000?)
-     │◄── 201 {"status": "Authorized"} ─│
+     │── ProcessPayment(Request) ─────► │
+     │   {order_id: ..., amount: ...}   │
+     │                                  │── validate amount, persist payment
+     │◄── PaymentResponse(...) ──────── │
      │                                  │
-     │  (update order → "Paid")         │
+     │  (update order → "Paid" / "Failed")
 ```
 
-The outbound `http.Client` is created at the Composition Root with a **2-second timeout**:
+The outbound gRPC client is created at the Composition Root with a **2-second deadline**:
 ```go
-paymentHTTPClient := &http.Client{Timeout: 2 * time.Second}
+paymentClient, err := client.NewPaymentClient(paymentAddr, 2*time.Second)
 ```
-This satisfies the required failure scenario: if Payment Service is slow or down, the Order Service never hangs.
+
+Order Service also exposes its own `OrderService` gRPC server on port `50052` for order lookup and server streaming updates:
+- `CreateOrder`
+- `GetOrder`
+- `CancelOrder`
+- `GetRecentPurchases`
+- `SubscribeToOrderUpdates`
+
+The streaming endpoint sends live order status updates after database notifications, while the payment call remains bounded by the 2-second timeout.
 
 ---
 
@@ -142,8 +152,10 @@ docker-compose up --build
 ```
 
 Services:
-- Order Service: http://localhost:8080
-- Payment Service: http://localhost:8081
+- Order Service HTTP: http://localhost:8080
+- Payment Service HTTP: http://localhost:8081
+- Payment Service gRPC: localhost:50051
+- Order Service gRPC: localhost:50052
 
 ### Option B — Manual
 
@@ -218,6 +230,29 @@ curl -X POST http://localhost:8080/orders \
 curl http://localhost:8081/payments/{order_id}
 ```
 
+---
+
+## gRPC API Examples
+
+#### Create an order using gRPC
+```bash
+grpcurl -plaintext -d '{"customer_id":"cust-001","item_name":"Laptop","amount":50000}' localhost:50052 api.v1.OrderService/CreateOrder
+```
+
+#### Subscribe to real-time order updates
+```bash
+go run ./order-service/cmd/order-subscriber --addr localhost:50052 --order-id {order_id}
+```
+
+#### Get recent purchases using gRPC
+```bash
+grpcurl -plaintext -d '{"limit":5}' localhost:50052 api.v1.OrderService/GetRecentPurchases
+```
+
+#### Evidence capture
+- Screenshot the successful `grpcurl` call for `CreateOrder` or real-time `order-subscriber` output.
+- Screenshot the updates printed by `order-subscriber` after order status changes to `Paid`.
+
 #### Simulate payment service down (for 503 test)
 ```bash
 # Stop payment-service, then:
@@ -238,7 +273,7 @@ curl -X POST http://localhost:8080/orders \
 | Amount > 100,000 → Declined   | `domain.NewPayment` | Hard limit in Payment bounded context        |
 | Paid orders cannot be cancelled | `domain.Order.Cancel` | Returns `ErrCannotCancelPaidOrder`       |
 | Only Pending can be cancelled | `domain.Order.Cancel` | Returns `ErrOnlyPendingCanBeCancelled`   |
-| HTTP client timeout: 2 seconds | `main.go` (Order)  | `&http.Client{Timeout: 2 * time.Second}`     |
+| gRPC client deadline: 2 seconds | `main.go` (Order)  | `client.NewPaymentClient(paymentAddr, 2*time.Second)`     |
 
 ---
 
@@ -248,7 +283,18 @@ curl -X POST http://localhost:8080/orders \
 |------------------------|-----------------------------------------------------------------------|
 | Clean Architecture     | 4 layers per service; interfaces as ports; DI at composition root    |
 | Microservice decomposition | Separate DBs, separate modules, no shared code                   |
-| REST communication     | Order→Payment via HTTP with 2s timeout; proper status codes          |
+| Service communication | Order→Payment via gRPC with 2s timeout; OrderService gRPC streaming updates |
 | Functionality          | All 5 endpoints; PostgreSQL; all business rules enforced             |
 | Documentation & Diagram | This README + architecture diagram (architecture_diagram.svg)      |
 | Bonus (Idempotency)    | Idempotency-Key header; unique DB constraint; use case check         |
+
+## Protobuf repository separation
+
+This repository contains `.proto` source files in `protos/`. Generated Go code is published to a separate generated repository at `https://github.com/alina-otuz/repo-b`.
+
+- Local generation: from the `protos/` directory run `buf generate` to produce `protos-gen/` for developer testing.
+- `protos-gen/` is treated as a local development artifact and should not be committed as the primary proto repo output.
+- Consumer services import the generated module from Repository B:
+  `go get github.com/alina-otuz/repo-b`
+
+A GitHub Actions workflow is provided to generate and push updated `.pb.go` files to Repository B automatically when `.proto` files change.

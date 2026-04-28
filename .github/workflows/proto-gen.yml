@@ -1,0 +1,57 @@
+name: Generate and publish protobuf code
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'protos/**'
+      - 'buf.yaml'
+      - 'buf.gen.yaml'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout proto repository
+        uses: actions/checkout@v4
+
+      - name: Set up buf
+        uses: bufbuild/buf-setup-action@v1
+
+      - name: Generate protobuf code
+        run: |
+          buf generate protos
+
+      - name: Push generated code to repo-b
+        env:
+          TARGET_REPO: alina-otuz/repo-b
+          TARGET_BRANCH: main
+          PUSH_TOKEN: ${{ secrets.BUF_GENERATED_REPO_PUSH_TOKEN }}
+        run: |
+          set -e
+
+          if [ -z "$PUSH_TOKEN" ]; then
+            echo "Missing PUSH_TOKEN secret."
+            exit 1
+          fi
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          git clone --depth=1 "https://x-access-token:${PUSH_TOKEN}@github.com/${TARGET_REPO}.git" generated-repo
+
+          rm -rf generated-repo/*
+          cp -R protos-gen/* generated-repo/
+
+          cd generated-repo
+
+          if git diff --quiet; then
+            echo "No generated changes to commit."
+          else
+            git add .
+            git commit -m "chore: update generated protobuf code"
+            git push origin "$TARGET_BRANCH"
+          fi
