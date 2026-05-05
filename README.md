@@ -1,144 +1,86 @@
-# AP2 Assignment 1 — Clean Architecture Microservices (Order & Payment)
+# AP2 Assignment 1 — Clean Architecture Microservices
 
 ## Overview
 
-A two-service platform built in Go, demonstrating Clean Architecture, bounded contexts, separate data ownership, and resilient synchronous internal gRPC communication between services.
+This repository implements a small Go microservice platform with separate Order, Payment, and Notification bounded contexts.
 
-Order Service exposes both HTTP and gRPC APIs, while Payment Service exposes gRPC for internal payment processing.
+- `order-service`: HTTP + gRPC API for creating orders, querying orders, cancelling pending orders, and streaming order status.
+- `payment-service`: HTTP + gRPC API for payment authorization and payment lookup.
+- `notification-service`: NATS JetStream consumer that logs simulated email notifications for completed payments.
+- `protos/`: protobuf definitions for the order/payment APIs.
+- `protos-gen/`: generated Go code from the protobuf definitions.
 
----
-
-## Architecture Decisions
-
-### Clean Architecture (per service)
-
-Each service is structured as four concentric layers. The **Dependency Rule** is strictly enforced: inner layers never import outer ones.
-
-```
-  ┌────────────────────────────────────┐
-  │   Delivery (transport/http)        │  ← Gin handlers; parses HTTP, calls use case
-  │ ┌──────────────────────────────┐   │
-  │ │   Use Case (usecase/)        │   │  ← All business logic & orchestration
-  │ │ ┌──────────────────────┐     │   │
-  │ │ │   Domain (domain/)   │     │   │  ← Entities, invariants, sentinel errors
-  │ │ └──────────────────────┘     │   │
-  │ │   Repository Port (interface)│   │
-  │ └──────────────────────────────┘   │
-  │   Repository (repository/postgres) │  ← Concrete DB adapter
-  └────────────────────────────────────┘
-```
-
-**Why this structure?**
-- **Thin handlers**: handlers only parse requests, call one use case method, and map errors to HTTP codes. No business logic.
-- **Use case owns decisions**: state transitions (`MarkPaid`, `MarkFailed`, `Cancel`) are triggered by the use case after interacting with ports.
-- **Domain owns invariants**: `NewOrder` rejects `amount <= 0` before anything is persisted. `Cancel()` enforces the paid-order rule.
-- **Interfaces (Ports)**: `OrderRepository` and `PaymentClient` are interfaces defined in the use case layer. The use case is testable without a database or HTTP server.
+The architecture uses Clean Architecture principles, separate PostgreSQL databases, and gRPC plus message broker communication between services.
 
 ---
 
-### Microservice Decomposition & Bounded Contexts
+## Architecture
 
-| Concern              | Order Service              | Payment Service             |
-|----------------------|----------------------------|-----------------------------|
-| Database             | `orders` DB (port 5432)   | `payments` DB (port 5433)  |
-| Domain entity        | `domain.Order`             | `domain.Payment`            |
-| Responsibility       | Order lifecycle management | Payment authorization        |
-| Owns data            | `orders` table             | `payments` table            |
+Each service is organized with a thin delivery layer, business use cases, domain entities, and repository adapters.
 
-**No shared code**: each service has its own `internal/domain` package. There is no `common/` or `shared/` module — a distributed monolith anti-pattern.
+- `internal/transport`: delivery adapters (HTTP, gRPC)
+- `internal/usecase`: application/business logic and ports
+- `internal/domain`: domain entities, invariants, and sentinel errors
+- `internal/repository/postgres`: PostgreSQL adapters
 
----
+Dependencies flow inward only: transport → usecase → domain/repository ports.
 
-### gRPC Communication & Timeout
+### Service boundaries
 
-Order Service → Payment Service via the `ProcessPayment` gRPC endpoint.
+| Service               | Responsibility                            | Owns data                  | Communication |
+|-----------------------|--------------------------------------------|----------------------------|---------------|
+| `order-service`       | Order lifecycle, create/cancel/query orders | `orders` DB                | gRPC → payment-service, gRPC external clients |
+| `payment-service`     | Authorize payments, publish payment events | `payments` DB              | receives gRPC from order-service, publishes NATS events |
+| `notification-service`| Consume payment events and simulate notifications | none                       | NATS JetStream |
 
-```
-Order Service                     Payment Service
-     │                                  │
-     │── ProcessPayment(Request) ─────► │
-     │   {order_id: ..., amount: ...}   │
-     │                                  │── validate amount, persist payment
-     │◄── PaymentResponse(...) ──────── │
-     │                                  │
-     │  (update order → "Paid" / "Failed")
-```
+### Infrastructure
 
-The outbound gRPC client is created at the Composition Root with a **2-second deadline**:
-```go
-paymentClient, err := client.NewPaymentClient(paymentAddr, 2*time.Second)
-```
-
-Order Service also exposes its own `OrderService` gRPC server on port `50052` for order lookup and server streaming updates:
-- `CreateOrder`
-- `GetOrder`
-- `CancelOrder`
-- `GetRecentPurchases`
-- `SubscribeToOrderUpdates`
-
-The streaming endpoint sends live order status updates after database notifications, while the payment call remains bounded by the 2-second timeout.
-
----
-
-### Failure Handling
-
-| Scenario                         | Behaviour                                              |
-|----------------------------------|--------------------------------------------------------|
-| Payment Service down / timeout   | Order marked `Failed`, HTTP 503 returned to client     |
-| Payment declined (amount > 1000) | Order marked `Failed`, HTTP 201 returned (order exists)|
-| Payment authorized               | Order marked `Paid`, HTTP 201 returned                 |
-
-**Design decision — why `Failed` instead of `Pending` on timeout?**
-
-Leaving the order as `Pending` implies it is still actionable, which is misleading: the payment attempt was made but did not complete. Marking it `Failed` gives the order a definite terminal state. The client can create a new order to retry. This avoids ghost `Pending` orders accumulating in the database.
-
----
-
-### Idempotency
-
-Pass an `Idempotency-Key` header on `POST /orders`. If the same key is sent twice, the original order is returned without creating a duplicate order or calling the Payment Service again.
-
-```
-POST /orders
-Idempotency-Key: alina-key-meow
-```
-
-Implementation: the key is stored in a `UNIQUE` column on the `orders` table. The use case checks for an existing order with that key before proceeding.
+`docker-compose.yml` wires:
+- `orders-db` (`postgres:16-alpine`) on host port `5432`
+- `payments-db` (`postgres:16-alpine`) on host port `5433`
+- `nats` broker on host port `4222`
+- `order-service` HTTP `8080`, gRPC `50052`
+- `payment-service` HTTP `8081`, gRPC `50051`
+- `notification-service` consuming from NATS
 
 ---
 
 ## Project Structure
 
 ```
-AP2_Assignment1/
+assignment-1-microservice/
 ├── docker-compose.yml
 ├── order-service/
-│   ├── cmd/order-service/main.go          ← Composition Root (manual DI)
+│   ├── cmd/order-service/main.go
 │   ├── internal/
-│   │   ├── domain/order.go                ← Entity + invariants + sentinel errors
-│   │   ├── usecase/
-│   │   │   ├── interfaces.go              ← Ports: OrderRepository, PaymentClient
-│   │   │   ├── order_usecase.go           ← Business logic
-│   │   │   └── client/payment_client.go   ← Outbound HTTP adapter
-│   │   ├── repository/postgres/
-│   │   │   └── order_repository.go        ← DB adapter
-│   │   └── transport/http/
-│   │       └── handler.go                 ← Gin handlers (thin delivery layer)
+│   │   ├── domain/order.go
+│   │   ├── repository/postgres/order_repository.go
+│   │   ├── transport/http/handler.go
+│   │   ├── transport/grpc/server.go
+│   │   └── usecase/
+│   │       ├── client/payment_client.go
+│   │       ├── interfaces.go
+│   │       └── order_usecase.go
 │   ├── migrations/001_create_orders.sql
 │   └── Dockerfile
-└── payment-service/
-    ├── cmd/payment-service/main.go         ← Composition Root (manual DI)
-    ├── internal/
-    │   ├── domain/payment.go               ← Entity + business rule (MaxAmount)
-    │   ├── usecase/
-    │   │   ├── interfaces.go               ← Port: PaymentRepository
-    │   │   └── payment_usecase.go          ← Business logic
-    │   ├── repository/postgres/
-    │   │   └── payment_repository.go       ← DB adapter
-    │   └── transport/http/
-    │       └── handler.go                  ← Gin handlers
-    ├── migrations/001_create_payments.sql
-    └── Dockerfile
+├── payment-service/
+│   ├── cmd/payment-service/main.go
+│   ├── internal/
+│   │   ├── domain/payment.go
+│   │   ├── messagebroker/nats/publisher.go
+│   │   ├── repository/postgres/payment_repository.go
+│   │   ├── transport/http/handler.go
+│   │   ├── transport/grpc/server.go
+│   │   └── usecase/
+│   │       ├── interfaces.go
+│   │       └── payment_usecase.go
+│   ├── migrations/001_create_payments.sql
+│   └── Dockerfile
+├── notification-service/
+│   ├── cmd/notification-service/main.go
+│   └── internal/messagebroker/nats/consumer.go
+├── protos/
+└── protos-gen/
 ```
 
 ---
@@ -151,84 +93,72 @@ AP2_Assignment1/
 docker-compose up --build
 ```
 
-Services:
-- Order Service HTTP: http://localhost:8080
-- Payment Service HTTP: http://localhost:8081
-- Payment Service gRPC: localhost:50051
-- Order Service gRPC: localhost:50052
+Open ports:
+- Order Service HTTP: `http://localhost:8080`
+- Payment Service HTTP: `http://localhost:8081`
+- Payment Service gRPC: `localhost:50051`
+- Order Service gRPC: `localhost:50052`
+- NATS: `localhost:4222`
 
 ### Option B — Manual
 
-**Prerequisites:** Go 1.21+, PostgreSQL running.
+**Prerequisites:** Go 1.21+, PostgreSQL.
 
 ```bash
-# Create databases
 psql -U postgres -c "CREATE DATABASE orders;"
 psql -U postgres -c "CREATE DATABASE payments;"
-
-# Run migrations
 psql -U postgres -d orders   -f order-service/migrations/001_create_orders.sql
 psql -U postgres -d payments -f payment-service/migrations/001_create_payments.sql
 
-# Start Payment Service (terminal 1)
 cd payment-service
 go mod tidy
 go run ./cmd/payment-service
 
-# Start Order Service (terminal 2)
-cd order-service
+cd ../order-service
 go mod tidy
 go run ./cmd/order-service
 ```
 
+> The notification service requires NATS and is started automatically by Docker Compose.
+
 ---
 
-## API Examples
+## HTTP API
 
 ### Order Service
 
-#### Create an order (payment authorized)
-```bash
-curl -X POST http://localhost:8080/orders \
-  -H "Content-Type: application/json" \
-  -d '{"customer_id": "cust-001", "item_name": "Laptop", "amount": 50000}'
-```
-Expected: `201 Created`, order status `"Paid"`
+`POST /orders`
+- Creates a new order and triggers payment authorization over gRPC.
+- Request body:
+  - `customer_id` (string, required)
+  - `item_name` (string, required)
+  - `amount` (int64, required, cents)
+  - `email` (string, required)
+- Optional header: `Idempotency-Key`
 
-#### Create an order (payment declined — amount > 100000)
-```bash
-curl -X POST http://localhost:8080/orders \
-  -H "Content-Type: application/json" \
-  -d '{"customer_id": "cust-001", "item_name": "Sports Car", "amount": 500000}'
-```
-Expected: `201 Created`, order status `"Failed"`
+`GET /orders/:id`
+- Fetch an order by ID.
 
-#### Get order by ID
-```bash
-curl http://localhost:8080/orders/{id}
-```
+`GET /orders/recent?limit={n}`
+- Returns recent paid purchases.
 
-#### Cancel a pending order
-```bash
-curl -X PATCH http://localhost:8080/orders/{id}/cancel
-```
-Expected: `200 OK` if Pending; `409 Conflict` if Paid.
-
-#### Idempotent order creation (bonus)
-```bash
-curl -X POST http://localhost:8080/orders \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: order-idem-key-001" \
-  -d '{"customer_id": "cust-001", "item_name": "Laptop", "amount": 50000}'
-# Second identical call returns the same order without duplicating it.
-```
+`PATCH /orders/:id/cancel`
+- Cancels a pending order only.
 
 ### Payment Service
 
-#### Get payment status for an order
-```bash
-curl http://localhost:8081/payments/{order_id}
-```
+`GET /`
+- Health check.
+
+`POST /payments`
+- Authorize a payment manually.
+- Request body:
+  - `order_id` (string, required)
+  - `amount` (int64, required, cents)
+  - `email` (string, required)
+
+`GET /payments/:order_id`
+- Get payment status for a given order.
 
 ---
 
@@ -236,7 +166,7 @@ curl http://localhost:8081/payments/{order_id}
 
 #### Create an order using gRPC
 ```bash
-grpcurl -plaintext -d '{"customer_id":"cust-001","item_name":"Laptop","amount":50000}' localhost:50052 api.v1.OrderService/CreateOrder
+grpcurl -plaintext -d '{"customer_id":"cust-001","item_name":"Laptop","amount":50000,"email":"customer@example.com"}' localhost:50052 api.v1.OrderService/CreateOrder
 ```
 
 #### Subscribe to real-time order updates
@@ -249,52 +179,31 @@ go run ./order-service/cmd/order-subscriber --addr localhost:50052 --order-id {o
 grpcurl -plaintext -d '{"limit":5}' localhost:50052 api.v1.OrderService/GetRecentPurchases
 ```
 
-#### Evidence capture
-- Screenshot the successful `grpcurl` call for `CreateOrder` or real-time `order-subscriber` output.
-- Screenshot the updates printed by `order-subscriber` after order status changes to `Paid`.
+---
 
-#### Simulate payment service down (for 503 test)
-```bash
-# Stop payment-service, then:
-curl -X POST http://localhost:8080/orders \
-  -H "Content-Type: application/json" \
-  -d '{"customer_id": "cust-001", "item_name": "Test", "amount": 10000}'
-# Expected: 503 Service Unavailable (within ~2 seconds)
-```
+## Notification Service
+
+`notification-service` consumes `payment.completed` events from NATS JetStream and simulates sending email notifications. It logs successful notifications and handles duplicate messages with an in-memory idempotency check.
 
 ---
 
 ## Business Rules Summary
 
-| Rule                          | Location            | Detail                                       |
-|-------------------------------|---------------------|----------------------------------------------|
-| Amount must be > 0            | `domain.NewOrder`   | Returns `ErrInvalidAmount`                   |
-| Amount stored as int64        | All layers          | Never float64; monetary precision guaranteed |
-| Amount > 100,000 → Declined   | `domain.NewPayment` | Hard limit in Payment bounded context        |
-| Paid orders cannot be cancelled | `domain.Order.Cancel` | Returns `ErrCannotCancelPaidOrder`       |
-| Only Pending can be cancelled | `domain.Order.Cancel` | Returns `ErrOnlyPendingCanBeCancelled`   |
-| gRPC client deadline: 2 seconds | `main.go` (Order)  | `client.NewPaymentClient(paymentAddr, 2*time.Second)`     |
+| Rule                                  | Implemented in                                 |
+|---------------------------------------|------------------------------------------------|
+| Order amount must be > 0               | `order-service/internal/domain/order.go`       |
+| Order cancellation only when Pending   | `order-service/internal/domain/order.go`       |
+| Paid orders cannot be cancelled        | `order-service/internal/domain/order.go`       |
+| Payment amount > 100000 is declined    | `payment-service/internal/domain/payment.go`   |
+| Payment event publication on success   | `payment-service/internal/usecase/payment_usecase.go` |
+| Order idempotency with header          | `order-service/internal/transport/http/handler.go` |
+| gRPC payment timeout                  | `order-service/cmd/order-service/main.go`      |
 
 ---
 
-## Grading Self-Assessment
+## Protobuf and Generated Code
 
-| Criterion              | Implementation                                                        |
-|------------------------|-----------------------------------------------------------------------|
-| Clean Architecture     | 4 layers per service; interfaces as ports; DI at composition root    |
-| Microservice decomposition | Separate DBs, separate modules, no shared code                   |
-| Service communication | Order→Payment via gRPC with 2s timeout; OrderService gRPC streaming updates |
-| Functionality          | All 5 endpoints; PostgreSQL; all business rules enforced             |
-| Documentation & Diagram | This README + architecture diagram (architecture_diagram.svg)      |
-| Bonus (Idempotency)    | Idempotency-Key header; unique DB constraint; use case check         |
+Protobuf sources live under `protos/`.
+The repo includes generated Go code in `protos-gen/`, which corresponds to the external module `github.com/alina-otuz/repo-b`.
 
-## Protobuf repository separation
-
-This repository contains `.proto` source files in `protos/`. Generated Go code is published to a separate generated repository at `https://github.com/alina-otuz/repo-b`.
-
-- Local generation: from the `protos/` directory run `buf generate` to produce `protos-gen/` for developer testing.
-- `protos-gen/` is treated as a local development artifact and should not be committed as the primary proto repo output.
-- Consumer services import the generated module from Repository B:
-  `go get github.com/alina-otuz/repo-b`
-
-A GitHub Actions workflow is provided to generate and push updated `.pb.go` files to Repository B automatically when `.proto` files change.
+Run `buf generate` from the `protos/` directory to regenerate Go artifacts locally.
