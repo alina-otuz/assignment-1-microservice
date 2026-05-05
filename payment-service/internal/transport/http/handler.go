@@ -11,7 +11,7 @@ import (
 
 // PaymentUseCase is the interface this handler depends on (inward dependency).
 type PaymentUseCase interface {
-	Authorize(ctx context.Context, orderID string, amount int64) (*domain.Payment, error)
+	Authorize(ctx context.Context, orderID string, amount int64, email string) (*domain.Payment, error)
 	GetByOrderID(ctx context.Context, orderID string) (*domain.Payment, error)
 }
 
@@ -35,6 +35,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 type authorizeRequest struct {
 	OrderID string `json:"order_id" binding:"required"`
 	Amount  int64  `json:"amount"   binding:"required,gt=0"`
+	Email   string `json:"email"    binding:"required,email"`
 }
 
 type paymentResponse struct {
@@ -65,7 +66,7 @@ func (h *Handler) authorize(c *gin.Context) {
 		return
 	}
 
-	payment, err := h.uc.Authorize(c.Request.Context(), req.OrderID, req.Amount)
+	payment, err := h.uc.Authorize(c.Request.Context(), req.OrderID, req.Amount, req.Email)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidPaymentAmount) || errors.Is(err, domain.ErrMissingOrderID) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

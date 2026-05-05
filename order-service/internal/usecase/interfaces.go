@@ -20,5 +20,5 @@ type OrderRepository interface {
 type PaymentClient interface {
 	// Authorize calls POST /payments on the Payment Service.
 	// Returns the status ("Authorized"/"Declined") and a transactionID.
-	Authorize(ctx context.Context, orderID string, amount int64) (status string, transactionID string, err error)
+	Authorize(ctx context.Context, orderID string, amount int64, email string) (status string, transactionID string, err error)
 }

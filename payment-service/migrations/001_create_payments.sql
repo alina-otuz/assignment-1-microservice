@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS payments (
     order_id       VARCHAR(36)  NOT NULL,
     transaction_id VARCHAR(36)  NOT NULL,
     amount         BIGINT       NOT NULL CHECK (amount > 0),  -- stored in cents; int64 only
-    status         VARCHAR(50)  NOT NULL                       -- Authorized | Declined
+    status         VARCHAR(50)  NOT NULL,                      -- Authorized | Declined
+    email          VARCHAR(255) NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments (order_id);

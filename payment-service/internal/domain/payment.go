@@ -28,10 +28,11 @@ type Payment struct {
 	TransactionID string
 	Amount        int64 // in cents; int64 – never float64 for money
 	Status        string
+	Email         string
 }
 
 // NewPayment validates inputs and applies the payment limit business rule.
-func NewPayment(id, orderID, transactionID string, amount int64) (*Payment, error) {
+func NewPayment(id, orderID, transactionID string, amount int64, email string) (*Payment, error) {
 	if orderID == "" {
 		return nil, ErrMissingOrderID
 	}
@@ -51,5 +52,6 @@ func NewPayment(id, orderID, transactionID string, amount int64) (*Payment, erro
 		TransactionID: transactionID,
 		Amount:        amount,
 		Status:        status,
+		Email:         email,
 	}, nil
 }

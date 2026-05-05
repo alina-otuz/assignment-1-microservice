@@ -28,21 +28,21 @@ v1.RegisterPaymentServiceServer(grpcServer, s)
 }
 
 func (s *Server) ProcessPayment(ctx context.Context, req *v1.ProcessPaymentRequest) (*v1.ProcessPaymentResponse, error) {
-payment, err := s.uc.Authorize(ctx, req.GetOrderId(), req.GetAmount())
-if err != nil {
-return nil, mapPaymentError(err)
-}
+	payment, err := s.uc.Authorize(ctx, req.GetOrderId(), req.GetAmount(), req.GetEmail())
+	if err != nil {
+		return nil, mapPaymentError(err)
+	}
 
-return &v1.ProcessPaymentResponse{
-Payment: &v1.Payment{
-Id:            payment.ID,
-OrderId:       payment.OrderID,
-TransactionId: payment.TransactionID,
-Amount:        payment.Amount,
-Status:        payment.Status,
-CreatedAt:     timestamppb.Now(),
-},
-}, nil
+	return &v1.ProcessPaymentResponse{
+		Payment: &v1.Payment{
+			Id:            payment.ID,
+			OrderId:       payment.OrderID,
+			TransactionId: payment.TransactionID,
+			Amount:        payment.Amount,
+			Status:        payment.Status,
+			CreatedAt:     timestamppb.Now(),
+		},
+	}, nil
 }
 
 func (s *Server) GetByOrderID(ctx context.Context, req *v1.GetByOrderIDRequest) (*v1.GetByOrderIDResponse, error) {

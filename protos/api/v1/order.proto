@@ -10,6 +10,7 @@ message CreateOrderRequest {
   string customer_id = 1;
   string item_name = 2;
   int64 amount = 3;
+  string email = 4;
 }
 
 message Order {
@@ -20,6 +21,7 @@ message Order {
   string status = 5;
   string idempotency_key = 6;
   google.protobuf.Timestamp created_at = 7;
+  string email = 8;
 }
 
 message CreateOrderResponse {

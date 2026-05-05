@@ -32,7 +32,7 @@ func (s *Server) Register(grpcServer *grpc.Server) {
 }
 
 func (s *Server) CreateOrder(ctx context.Context, req *v1.CreateOrderRequest) (*v1.CreateOrderResponse, error) {
-	order, err := s.uc.CreateOrder(ctx, req.GetCustomerId(), req.GetItemName(), req.GetAmount(), "")
+	order, err := s.uc.CreateOrder(ctx, req.GetCustomerId(), req.GetItemName(), req.GetAmount(), "", req.GetEmail())
 	if err != nil {
 		return nil, mapOrderError(err)
 	}
@@ -128,6 +128,7 @@ func toProto(order *domain.Order) *v1.Order {
 		Status:         order.Status,
 		IdempotencyKey: order.IdempotencyKey,
 		CreatedAt:      timestamppb.New(order.CreatedAt),
+		Email:          order.Email,
 	}
 }
 

@@ -12,27 +12,36 @@ import (
 // Business rules (e.g., MaxAmount limit) live in domain.NewPayment, not here.
 // The use case calls the domain and persists the result.
 type PaymentUseCase struct {
-repo PaymentRepository
+	repo      PaymentRepository
+	publisher MessagePublisher
 }
 
-func NewPaymentUseCase(repo PaymentRepository) *PaymentUseCase {
-return &PaymentUseCase{repo: repo}
+func NewPaymentUseCase(repo PaymentRepository, publisher MessagePublisher) *PaymentUseCase {
+	return &PaymentUseCase{repo: repo, publisher: publisher}
 }
 
 // Authorize creates and persists a new payment for the given order.
 // The domain entity decides Authorized vs Declined based on business rules.
-func (uc *PaymentUseCase) Authorize(ctx context.Context, orderID string, amount int64) (*domain.Payment, error) {
-transactionID := uuid.New().String()
-payment, err := domain.NewPayment(uuid.New().String(), orderID, transactionID, amount)
-if err != nil {
-return nil, err
-}
+func (uc *PaymentUseCase) Authorize(ctx context.Context, orderID string, amount int64, email string) (*domain.Payment, error) {
+	transactionID := uuid.New().String()
+	payment, err := domain.NewPayment(uuid.New().String(), orderID, transactionID, amount, email)
+	if err != nil {
+		return nil, err
+	}
 
-if err := uc.repo.Create(ctx, payment); err != nil {
-return nil, fmt.Errorf("PaymentUseCase.Authorize: %w", err)
-}
+	if err := uc.repo.Create(ctx, payment); err != nil {
+		return nil, fmt.Errorf("PaymentUseCase.Authorize: %w", err)
+	}
 
-return payment, nil
+	// Publish message if payment is authorized
+	if payment.Status == domain.StatusAuthorized {
+		if err := uc.publisher.PublishPaymentCompleted(ctx, payment.OrderID, payment.Email, payment.Amount, payment.Status); err != nil {
+			// Log error but don't fail the payment
+			fmt.Printf("Failed to publish payment completed message: %v\n", err)
+		}
+	}
+
+	return payment, nil
 }
 
 // GetByOrderID retrieves the payment record associated with a given order.

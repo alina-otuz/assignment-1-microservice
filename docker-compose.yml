@@ -38,6 +38,20 @@ services:
       retries: 5
       start_period: 10s
 
+  # ── Message Broker ─────────────────────────────────────────────────────
+  nats:
+    image: nats:2-alpine
+    ports:
+      - "4222:4222"   # NATS client port
+      - "8222:8222"   # NATS monitoring port
+    command: ["-js"]  # Enable JetStream
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # ── Services ──────────────────────────────────────────────────────────────
   order-service:
     build:
@@ -71,15 +85,40 @@ services:
       PAYMENT_DB_DSN:  "host=payments-db port=5432 user=postgres password=postgres dbname=payments sslmode=disable"
       PAYMENT_PORT:    "8081"
       PAYMENT_GRPC_PORT: "50051"
+      NATS_URL:        "nats://nats:4222"
     depends_on:
       payments-db:
+        condition: service_healthy
+      nats:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  notification-service:
+    build:
+      context: ..
+      dockerfile: assignment-1-microservice/notification-service/Dockerfile
+    restart: on-failure
+    environment:
+      NATS_URL: "nats://nats:4222"
+    depends_on:
+      nats:
+        condition: service_healthy
       start_period: 10s
+
+  notification-service:
+    build:
+      context: ..
+      dockerfile: assignment-1-microservice/notification-service/Dockerfile
+    restart: on-failure
+    environment:
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
 volumes:
   orders-data:

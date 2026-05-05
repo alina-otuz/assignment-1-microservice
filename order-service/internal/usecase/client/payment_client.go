@@ -46,11 +46,11 @@ func (c *PaymentClient) Close() error {
 }
 
 // Authorize calls the Payment Service via gRPC.
-func (c *PaymentClient) Authorize(ctx context.Context, orderID string, amount int64) (string, string, error) {
+func (c *PaymentClient) Authorize(ctx context.Context, orderID string, amount int64, email string) (string, string, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	resp, err := c.grpcClient.ProcessPayment(ctx, &v1.ProcessPaymentRequest{OrderId: orderID, Amount: amount})
+	resp, err := c.grpcClient.ProcessPayment(ctx, &v1.ProcessPaymentRequest{OrderId: orderID, Amount: amount, Email: email})
 	if err != nil {
 		return "", "", fmt.Errorf("PaymentClient.ProcessPayment: %w", err)
 	}

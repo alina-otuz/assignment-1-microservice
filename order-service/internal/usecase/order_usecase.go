@@ -35,6 +35,7 @@ func (uc *OrderUseCase) CreateOrder(
 	customerID, itemName string,
 	amount int64,
 	idempotencyKey string,
+	email string,
 ) (*domain.Order, error) {
 
 	// --- Idempotency check (Bonus) ---
@@ -46,7 +47,7 @@ func (uc *OrderUseCase) CreateOrder(
 	}
 
 	// --- Domain construction (validates invariants) ---
-	order, err := domain.NewOrder(uuid.New().String(), customerID, itemName, amount, idempotencyKey)
+	order, err := domain.NewOrder(uuid.New().String(), customerID, itemName, amount, idempotencyKey, email)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func (uc *OrderUseCase) CreateOrder(
 	}
 
 	// --- Call Payment Service (synchronous gRPC, 2-second timeout) ---
-	status, _, err := uc.paymentClient.Authorize(ctx, order.ID, order.Amount)
+	status, _, err := uc.paymentClient.Authorize(ctx, order.ID, order.Amount, order.Email)
 	if err != nil {
 		// Payment service is down or timed out.
 		// Design decision: mark as Failed so the order has a definite terminal state

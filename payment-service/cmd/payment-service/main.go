@@ -11,6 +11,7 @@ import (
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
 
+	"payment-service/internal/messagebroker/nats"
 	"payment-service/internal/repository/postgres"
 	httpTransport "payment-service/internal/transport/http"
 	grpcTransport "payment-service/internal/transport/grpc"
@@ -35,9 +36,17 @@ func main() {
 	}
 	log.Println("Connected to payments database")
 
+	// ── Message Broker ──────────────────────────────────────────────────
+	natsURL := getEnv("NATS_URL", "nats://nats:4222")
+	publisher, err := nats.NewPublisher(natsURL, "payment")
+	if err != nil {
+		log.Fatalf("failed to create NATS publisher: %v", err)
+	}
+	defer publisher.Close()
+
 	// ── Manual Dependency Injection (Composition Root) ─────────────────
 	paymentRepo := postgres.NewPaymentRepository(db)
-	paymentUC := usecase.NewPaymentUseCase(paymentRepo)
+	paymentUC := usecase.NewPaymentUseCase(paymentRepo, publisher)
 	httpHandler := httpTransport.NewHandler(paymentUC)
 	grpcHandler := grpcTransport.NewServer(paymentUC)
 

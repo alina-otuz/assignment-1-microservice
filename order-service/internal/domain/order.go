@@ -35,10 +35,11 @@ type Order struct {
 	Status         string
 	IdempotencyKey string
 	CreatedAt      time.Time
+	Email          string
 }
 
 // NewOrder validates invariants and returns a new Pending order.
-func NewOrder(id, customerID, itemName string, amount int64, idempotencyKey string) (*Order, error) {
+func NewOrder(id, customerID, itemName string, amount int64, idempotencyKey string, email string) (*Order, error) {
 	if amount <= 0 {
 		return nil, ErrInvalidAmount
 	}
@@ -48,6 +49,9 @@ func NewOrder(id, customerID, itemName string, amount int64, idempotencyKey stri
 	if itemName == "" {
 		return nil, ErrMissingItemName
 	}
+	if email == "" {
+		return nil, errors.New("email is required")
+	}
 	return &Order{
 		ID:             id,
 		CustomerID:     customerID,
@@ -56,6 +60,7 @@ func NewOrder(id, customerID, itemName string, amount int64, idempotencyKey stri
 		Status:         StatusPending,
 		IdempotencyKey: idempotencyKey,
 		CreatedAt:      time.Now().UTC(),
+		Email:          email,
 	}, nil
 }
 

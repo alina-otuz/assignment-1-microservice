@@ -21,12 +21,12 @@ func NewOrderRepository(db *sql.DB) *OrderRepository {
 // Create inserts a new order row.
 func (r *OrderRepository) Create(ctx context.Context, order *domain.Order) error {
 	const q = `
-		INSERT INTO orders (id, customer_id, item_name, amount, status, idempotency_key, created_at)
-		VALUES ($1, $2, $3, $4, $5, NULLIF($6,''), $7)`
+		INSERT INTO orders (id, customer_id, item_name, amount, status, idempotency_key, created_at, email)
+		VALUES ($1, $2, $3, $4, $5, NULLIF($6,''), $7, $8)`
 
 	_, err := r.db.ExecContext(ctx, q,
 		order.ID, order.CustomerID, order.ItemName,
-		order.Amount, order.Status, order.IdempotencyKey, order.CreatedAt,
+		order.Amount, order.Status, order.IdempotencyKey, order.CreatedAt, order.Email,
 	)
 	if err != nil {
 		return fmt.Errorf("OrderRepository.Create: %w", err)
@@ -38,13 +38,13 @@ func (r *OrderRepository) Create(ctx context.Context, order *domain.Order) error
 func (r *OrderRepository) GetByID(ctx context.Context, id string) (*domain.Order, error) {
 	const q = `
 		SELECT id, customer_id, item_name, amount, status,
-		       COALESCE(idempotency_key,''), created_at
+		       COALESCE(idempotency_key,''), created_at, email
 		FROM orders WHERE id = $1`
 
 	var o domain.Order
 	err := r.db.QueryRowContext(ctx, q, id).Scan(
 		&o.ID, &o.CustomerID, &o.ItemName,
-		&o.Amount, &o.Status, &o.IdempotencyKey, &o.CreatedAt,
+		&o.Amount, &o.Status, &o.IdempotencyKey, &o.CreatedAt, &o.Email,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrOrderNotFound
@@ -59,13 +59,13 @@ func (r *OrderRepository) GetByID(ctx context.Context, id string) (*domain.Order
 func (r *OrderRepository) GetByIdempotencyKey(ctx context.Context, key string) (*domain.Order, error) {
 	const q = `
 		SELECT id, customer_id, item_name, amount, status,
-		       COALESCE(idempotency_key,''), created_at
+		       COALESCE(idempotency_key,''), created_at, email
 		FROM orders WHERE idempotency_key = $1`
 
 	var o domain.Order
 	err := r.db.QueryRowContext(ctx, q, key).Scan(
 		&o.ID, &o.CustomerID, &o.ItemName,
-		&o.Amount, &o.Status, &o.IdempotencyKey, &o.CreatedAt,
+		&o.Amount, &o.Status, &o.IdempotencyKey, &o.CreatedAt, &o.Email,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrOrderNotFound
@@ -80,7 +80,7 @@ func (r *OrderRepository) GetByIdempotencyKey(ctx context.Context, key string) (
 func (r *OrderRepository) ListRecentPaid(ctx context.Context, limit int) ([]domain.Order, error) {
 	const q = `
 		SELECT id, customer_id, item_name, amount, status,
-		       COALESCE(idempotency_key,''), created_at
+		       COALESCE(idempotency_key,''), created_at, email
 		FROM orders
 		WHERE status = $1
 		ORDER BY created_at DESC
@@ -97,7 +97,7 @@ func (r *OrderRepository) ListRecentPaid(ctx context.Context, limit int) ([]doma
 		var o domain.Order
 		if err := rows.Scan(
 			&o.ID, &o.CustomerID, &o.ItemName,
-			&o.Amount, &o.Status, &o.IdempotencyKey, &o.CreatedAt,
+			&o.Amount, &o.Status, &o.IdempotencyKey, &o.CreatedAt, &o.Email,
 		); err != nil {
 			return nil, fmt.Errorf("OrderRepository.ListRecentPaid scan: %w", err)
 		}

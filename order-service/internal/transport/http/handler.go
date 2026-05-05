@@ -14,7 +14,7 @@ import (
 // OrderUseCase is the interface the handler depends on.
 // Defined here (in the delivery layer) to keep the dependency arrow pointing inward.
 type OrderUseCase interface {
-	CreateOrder(ctx context.Context, customerID, itemName string, amount int64, idempotencyKey string) (*domain.Order, error)
+	CreateOrder(ctx context.Context, customerID, itemName string, amount int64, idempotencyKey string, email string) (*domain.Order, error)
 	GetOrder(ctx context.Context, id string) (*domain.Order, error)
 	CancelOrder(ctx context.Context, id string) (*domain.Order, error)
 	GetRecentPurchases(ctx context.Context, limit int) ([]domain.Order, error)
@@ -44,6 +44,7 @@ type createOrderRequest struct {
 	CustomerID string `json:"customer_id" binding:"required"`
 	ItemName   string `json:"item_name"   binding:"required"`
 	Amount     int64  `json:"amount"      binding:"required,gt=0"`
+	Email      string `json:"email"       binding:"required,email"`
 }
 
 type orderResponse struct {
@@ -81,7 +82,7 @@ func (h *Handler) createOrder(c *gin.Context) {
 	// Bonus: read optional Idempotency-Key header
 	idempotencyKey := c.GetHeader("Idempotency-Key")
 
-	order, err := h.uc.CreateOrder(c.Request.Context(), req.CustomerID, req.ItemName, req.Amount, idempotencyKey)
+	order, err := h.uc.CreateOrder(c.Request.Context(), req.CustomerID, req.ItemName, req.Amount, idempotencyKey, req.Email)
 	if err != nil {
 		switch {
 		case errors.Is(err, domain.ErrPaymentServiceUnavailable):

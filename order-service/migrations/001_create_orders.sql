@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS orders (
     amount          BIGINT       NOT NULL CHECK (amount > 0),  -- stored in cents; int64 only
     status          VARCHAR(50)  NOT NULL DEFAULT 'Pending',   -- Pending | Paid | Failed | Cancelled
     idempotency_key VARCHAR(255) UNIQUE,                       -- NULL when no key provided (bonus feature)
-    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    email           VARCHAR(255) NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders (customer_id);
