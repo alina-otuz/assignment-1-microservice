@@ -26,12 +26,10 @@ func main() {
 		log.Fatalf("failed to start consuming: %v", err)
 	}
 
-	// In-memory store for processed message IDs (for idempotency)
 	processedMessages := make(map[string]bool)
 
 	log.Println("Notification service started. Waiting for messages...")
 
-	// Handle graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
@@ -40,12 +38,11 @@ func main() {
 			var paymentMsg nats.PaymentCompletedMessage
 			if err := json.Unmarshal(msg.Data, &paymentMsg); err != nil {
 				log.Printf("Failed to unmarshal message: %v", err)
-				// For invalid messages, we can choose to ack or not; since it's invalid, ack to remove
 				msg.Ack()
 				continue
 			}
 
-			// Simulated permanent failure condition
+			// Simulated failure condition
 			if paymentMsg.CustomerEmail == "fail@example.com" {
 				meta, err := msg.Meta()
 				attempts := 1
@@ -67,10 +64,10 @@ func main() {
 				continue
 			}
 
-			// Idempotency check: skip if already processed
+			// Idempotency check
 			if processedMessages[paymentMsg.ID] {
 				log.Printf("Duplicate message received, skipping: %s", paymentMsg.ID)
-				msg.Ack() // Acknowledge duplicate to remove from stream
+				msg.Ack()
 				continue
 			}
 

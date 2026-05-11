@@ -2,13 +2,14 @@ package nats
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// PaymentCompletedMessage represents the message received when a payment is completed.
 type PaymentCompletedMessage struct {
 	ID            string `json:"id"`
 	OrderID       string `json:"order_id"`
@@ -17,7 +18,6 @@ type PaymentCompletedMessage struct {
 	Status        string `json:"status"`
 }
 
-// Message represents a consumed message with ACK functionality.
 type Message struct {
 	Data []byte
 	Ack  func() error
@@ -26,14 +26,14 @@ type Message struct {
 	Meta func() (*jetstream.MsgMetadata, error)
 }
 
-// Consumer consumes messages from NATS JetStream.
 type Consumer struct {
+	conn       *nats.Conn
 	js         jetstream.JetStream
 	consumer   jetstream.Consumer
 	dlqSubject string
 }
 
-// NewConsumer creates a new NATS JetStream consumer.
+
 func NewConsumer(natsURL, streamName string) (*Consumer, error) {
 	nc, err := nats.Connect(natsURL)
 	if err != nil {
@@ -46,7 +46,7 @@ func NewConsumer(natsURL, streamName string) (*Consumer, error) {
 		return nil, fmt.Errorf("failed to create JetStream context: %w", err)
 	}
 
-	// Create or update the primary stream
+
 	_, err = js.CreateOrUpdateStream(context.Background(), jetstream.StreamConfig{
 		Name:     streamName,
 		Subjects: []string{streamName + ".>"},
@@ -57,11 +57,12 @@ func NewConsumer(natsURL, streamName string) (*Consumer, error) {
 		return nil, fmt.Errorf("failed to create stream: %w", err)
 	}
 
-	// Create or update the DLQ stream
+	
 	dlqStreamName := streamName + "-dlq"
+	dlqSubject := "dlq." + streamName
 	_, err = js.CreateOrUpdateStream(context.Background(), jetstream.StreamConfig{
 		Name:     dlqStreamName,
-		Subjects: []string{streamName + ".dlq"},
+		Subjects: []string{dlqSubject},
 		Storage:  jetstream.FileStorage,
 	})
 	if err != nil {
@@ -69,7 +70,7 @@ func NewConsumer(natsURL, streamName string) (*Consumer, error) {
 		return nil, fmt.Errorf("failed to create DLQ stream: %w", err)
 	}
 
-	// Create consumer with retry policy for permanent failure handling
+
 	consumer, err := js.CreateOrUpdateConsumer(context.Background(), streamName, jetstream.ConsumerConfig{
 		Name:          "notification-consumer",
 		Durable:       "notification-consumer",
@@ -83,19 +84,21 @@ func NewConsumer(natsURL, streamName string) (*Consumer, error) {
 	}
 
 	return &Consumer{
+		conn:       nc,
 		js:         js,
 		consumer:   consumer,
-		dlqSubject: streamName + ".dlq",
+		dlqSubject: dlqSubject,
 	}, nil
 }
 
-// Close closes the connection.
 func (c *Consumer) Close() error {
-	// NATS connection is managed internally
+	if c.conn != nil {
+		c.conn.Close()
+	}
 	return nil
 }
 
-// PublishToDLQ sends a message to the Dead Letter Queue stream.
+// Dead Letter Queue
 func (c *Consumer) PublishToDLQ(ctx context.Context, data []byte) error {
 	_, err := c.js.Publish(ctx, c.dlqSubject, data)
 	return err
@@ -109,9 +112,14 @@ func (c *Consumer) Consume() (<-chan Message, error) {
 		defer close(msgChan)
 
 		for {
-			msgs, err := c.consumer.Fetch(1, jetstream.FetchMaxWait(1000))
+			msgs, err := c.consumer.Fetch(1, jetstream.FetchMaxWait(2*time.Second))
 			if err != nil {
-				// Handle error, perhaps log and continue
+				// Timeout
+				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, nats.ErrTimeout) {
+					time.Sleep(100 * time.Millisecond)
+					continue
+				}
+				time.Sleep(250 * time.Millisecond)
 				continue
 			}
 

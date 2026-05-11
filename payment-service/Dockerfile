@@ -1,8 +1,8 @@
 FROM golang:1.25-alpine AS builder
 WORKDIR /app
-COPY assignment-1-microservice/payment-service/go.mod assignment-1-microservice/payment-service/go.sum ./payment-service/
-COPY assignment-1-microservice/protos-gen/ ./protos-gen/
-COPY assignment-1-microservice/payment-service/ ./payment-service/
+COPY payment-service/go.mod payment-service/go.sum ./payment-service/
+COPY protos-gen/ ./protos-gen/
+COPY payment-service/ ./payment-service/
 WORKDIR /app/payment-service
 RUN go mod download
 RUN go build -o payment-service ./cmd/payment-service

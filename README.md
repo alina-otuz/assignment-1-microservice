@@ -185,6 +185,7 @@ grpcurl -plaintext -d '{"limit":5}' localhost:50052 api.v1.OrderService/GetRecen
 
 `notification-service` consumes `payment.completed` events from NATS JetStream and simulates sending email notifications. It logs successful notifications and handles duplicate messages with an in-memory idempotency check.
 
+Invoke-RestMethod -Uri 'http://localhost:8081/payments' -Method Post -ContentType 'application/json' -Body (@{order_id='order-dlq-1'; amount=1000; email='fail@example.com'} | ConvertTo-Json)
 ---
 
 ## Business Rules Summary
