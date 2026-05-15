@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -10,9 +11,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 
 	"order-service/internal/repository/postgres"
+	redisRepo "order-service/internal/repository/redis"
 	httpTransport "order-service/internal/transport/http"
 	grpcTransport "order-service/internal/transport/grpc"
 	"order-service/internal/usecase"
@@ -37,6 +40,19 @@ func main() {
 	}
 	log.Println("Connected to orders database")
 
+	// ── Redis (cache-aside for order reads) ─────────────────────────────
+	redisAddr := getEnv("REDIS_ADDR", "localhost:6379")
+	redisClient := redis.NewClient(&redis.Options{Addr: redisAddr})
+	defer redisClient.Close()
+
+	if err := redisClient.Ping(context.Background()).Err(); err != nil {
+		log.Fatalf("cannot reach Redis at %s: %v", redisAddr, err)
+	}
+	log.Printf("Connected to Redis at %s", redisAddr)
+
+	cacheTTL := 5 * time.Minute
+	orderCache := redisRepo.NewOrderCache(redisClient, cacheTTL)
+
 	// ── Outbound gRPC client (required: 2-second timeout) ──────────────
 	paymentHost := getEnv("PAYMENT_SERVICE_GRPC_HOST", "localhost")
 	paymentPort := getEnv("PAYMENT_SERVICE_GRPC_PORT", "50051")
@@ -50,7 +66,7 @@ func main() {
 
 	// ── Manual Dependency Injection (Composition Root) ─────────────────
 	orderRepo := postgres.NewOrderRepository(db)
-	orderUC := usecase.NewOrderUseCase(orderRepo, paymentClient)
+	orderUC := usecase.NewOrderUseCase(orderRepo, paymentClient, orderCache)
 	handler := httpTransport.NewHandler(orderUC)
 	grpcHandler := grpcTransport.NewServer(orderUC, dsn)
 

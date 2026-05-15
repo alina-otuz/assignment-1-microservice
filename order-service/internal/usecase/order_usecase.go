@@ -2,10 +2,13 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"order-service/internal/domain"
+	"log"
 
 	"github.com/google/uuid"
+
+	"order-service/internal/domain"
 )
 
 // OrderUseCase orchestrates all business flows for the Order bounded context.
@@ -13,10 +16,11 @@ import (
 type OrderUseCase struct {
 	repo          OrderRepository
 	paymentClient PaymentClient
+	cache         OrderCache
 }
 
-func NewOrderUseCase(repo OrderRepository, paymentClient PaymentClient) *OrderUseCase {
-	return &OrderUseCase{repo: repo, paymentClient: paymentClient}
+func NewOrderUseCase(repo OrderRepository, paymentClient PaymentClient, cache OrderCache) *OrderUseCase {
+	return &OrderUseCase{repo: repo, paymentClient: paymentClient, cache: cache}
 }
 
 // CreateOrder is the primary use case:
@@ -65,7 +69,9 @@ func (uc *OrderUseCase) CreateOrder(
 		// rather than being orphaned as Pending. During defense: "Failed is honest –
 		// the payment was attempted and did not complete successfully."
 		order.MarkFailed()
-		_ = uc.repo.Update(ctx, order) // Best-effort update; ignore secondary error.
+		if updateErr := uc.repo.Update(ctx, order); updateErr == nil {
+			uc.invalidateCache(ctx, order.ID)
+		}
 		return nil, domain.ErrPaymentServiceUnavailable
 	}
 
@@ -79,16 +85,27 @@ func (uc *OrderUseCase) CreateOrder(
 	if err := uc.repo.Update(ctx, order); err != nil {
 		return nil, fmt.Errorf("failed to update order status: %w", err)
 	}
+	uc.invalidateCache(ctx, order.ID)
 
 	return order, nil
 }
 
-// GetOrder retrieves an order by its ID.
+// GetOrder retrieves an order by ID using cache-aside: Redis first, then PostgreSQL.
 func (uc *OrderUseCase) GetOrder(ctx context.Context, id string) (*domain.Order, error) {
-	order, err := uc.repo.GetByID(ctx, id)
+	order, err := uc.cache.Get(ctx, id)
+	if err == nil {
+		return order, nil
+	}
+	if !errors.Is(err, ErrCacheMiss) {
+		log.Printf("cache get order %s: %v", id, err)
+	}
+
+	order, err = uc.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+
+	uc.populateCache(ctx, order)
 	return order, nil
 }
 
@@ -107,6 +124,7 @@ func (uc *OrderUseCase) CancelOrder(ctx context.Context, id string) (*domain.Ord
 	if err := uc.repo.Update(ctx, order); err != nil {
 		return nil, fmt.Errorf("failed to persist cancellation: %w", err)
 	}
+	uc.invalidateCache(ctx, order.ID)
 
 	return order, nil
 }
@@ -114,4 +132,16 @@ func (uc *OrderUseCase) CancelOrder(ctx context.Context, id string) (*domain.Ord
 // GetRecentPurchases returns most recent paid orders (purchases) sorted by time descending.
 func (uc *OrderUseCase) GetRecentPurchases(ctx context.Context, limit int) ([]domain.Order, error) {
 	return uc.repo.ListRecentPaid(ctx, limit)
+}
+
+func (uc *OrderUseCase) populateCache(ctx context.Context, order *domain.Order) {
+	if err := uc.cache.Set(ctx, order); err != nil {
+		log.Printf("cache set order %s: %v", order.ID, err)
+	}
+}
+
+func (uc *OrderUseCase) invalidateCache(ctx context.Context, orderID string) {
+	if err := uc.cache.Delete(ctx, orderID); err != nil {
+		log.Printf("cache invalidate order %s: %v", orderID, err)
+	}
 }
